@@ -1,32 +1,25 @@
 ﻿
-using System.Diagnostics.Tracing;
-using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
-
 namespace Exact_Hit
 {
     using System;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using System.Threading.Tasks.Dataflow;
 
     public class GameSimulator
     {
-        public static int total_steps = 0;
-        public static ActionBlock<bool> actionBlock = new ActionBlock<bool>(SimulateGameAsync);
+        public static int total_steps;
+        public static ActionBlock<bool> actionBlock = new ActionBlock<bool>(SimulateGameAsync, new ExecutionDataflowBlockOptions(){BoundedCapacity = 1000, MaxDegreeOfParallelism = 100});
 
         static async Task Main(string[] args)
         {
-            ////Console.WriteLine("welcome to Exact Hit Simulator (aka Bulls and Cows)\n" +
-            ////                  "for a manual simulation of the system cracking your code press 1, for automated simulation press 2");
-            ////int decision = Console.Read();
+            int decisionNumber = GetGameMode();
 
-            ////Console.WriteLine(decision == 1 ? ManualGame() : AutomatedSimulations());
-
-            var x = await AutomatedSimulationsAsync().ConfigureAwait(false);
-            Console.WriteLine(x);
-            Console.WriteLine(total_steps);
-            Console.ReadLine();
-            Console.ReadLine();
+            string message = decisionNumber == 2 ? await AutomatedSimulationsAsync().ConfigureAwait(false) : ManualGame();
+           
+            Console.WriteLine(message);
+            Console.WriteLine("\n simulation finished, press enter to exit...");
+            Console.Read();
         }
 
         /// <summary>
@@ -35,26 +28,23 @@ namespace Exact_Hit
         /// <param name="disableRepeatingColors"></param>
         private static void SimulateGameAsync(bool disableRepeatingColors)
         {
-            Console.WriteLine("pass..");
-            //Player player = new Player();
+            Player player = new Player();
 
-            //ComputingLogic logic = new ComputingLogic(disableRepeatingColors: disableRepeatingColors);
+            ComputingLogic logic = new ComputingLogic(disableRepeatingColors: disableRepeatingColors);
 
             var stepsCount = 1;
-            //var newGuess = logic.MakeGuess();
-            //var response = player.TryNewGuess(newGuess);
+            var newGuess = logic.MakeGuess();
+            var response = player.TryNewGuess(newGuess);
 
-            //while (response.ExactHits != Guess.c_GuessLenght)
-            //{
-            //    logic.ReceiveResponse(response);
-            //    newGuess = logic.MakeGuess();
-            //    response = player.TryNewGuess(newGuess);
-            //    stepsCount++;
-            //}
+            while (response.ExactHits != Guess.c_GuessLenght)
+            {
+                logic.ReceiveResponse(response);
+                newGuess = logic.MakeGuess();
+                response = player.TryNewGuess(newGuess);
+                stepsCount++;
+            }
 
             Interlocked.Add(ref total_steps, stepsCount);
-            Console.WriteLine("finished worker function");
-            return;
         }
 
         /// <summary>
@@ -62,7 +52,7 @@ namespace Exact_Hit
         /// </summary>
         private static string ManualGame()
         {
-            ComputingLogic logic = new ComputingLogic(disableRepeatingColors: true);
+            ComputingLogic logic = new ComputingLogic(disableRepeatingColors: false);
             int steps = 1;
 
             while (true)
@@ -74,7 +64,17 @@ namespace Exact_Hit
                 var response = new Response();
 
                 Console.WriteLine("enter the number of exact hits (B) : ");
-                response.ExactHits = Console.Read();
+
+                var input = Console.ReadLine();
+                int input_int;
+
+                while ((!int.TryParse(input, out input_int)))
+                {
+                    Console.WriteLine("invalid number, please provide an integer");
+                    input = Console.ReadLine();
+                }
+
+                response.ExactHits = input_int;
 
                 if (response.ExactHits == Guess.c_GuessLenght)
                 {
@@ -82,40 +82,86 @@ namespace Exact_Hit
                 }
 
                 Console.WriteLine("enter the number of Almost hits (X) : ");
-                response.AlmostHits = Console.Read();
+
+                input = Console.ReadLine();
+
+                while ((!int.TryParse(input, out input_int)))
+                {
+                    Console.WriteLine("invalid number, please provide an integer");
+                    input = Console.ReadLine();
+                }
+
+                response.AlmostHits = input_int;
 
 
                 if (!logic.ReceiveResponse(response))
                 {
-                    return "mistake in at least one of the step, no secret possible for the given results";
+                    return "mistake in at least one of the step's Response, no secret possible for the given results";
                 }
+                
                 steps++;
             }
         }
 
-        private static async Task<string > AutomatedSimulationsAsync()
+        private static async Task<string> AutomatedSimulationsAsync()
         {
-            int totalSteps = 0, max = 0, min = 1000000;
-            bool disableRepeatingColors = false;
+            var numberOfSimulations = GetRequestedNumberOfSimulations();
 
-            int num_of_steps = 1;
-            int total_runs = 0;
-            for (int i = 0; i < num_of_steps; i++)
+            var totalRuns = 0;
+            for (var i = 0; i < numberOfSimulations; i++)
             {
-                if (actionBlock.Post(disableRepeatingColors))
+                if (await actionBlock.SendAsync( false))
                 {
-                    total_runs++;
+                    totalRuns++;
                 }
             }
-            Thread.Sleep(9000);
 
+            // polling until action block workers finish - awaiting completion Task isn't supported unless Complete()
+            // is called which stops all unfinished processes... polling does the job...
+            while (actionBlock.InputCount != 0)
+            {
+                Thread.Sleep(500);
+            }
 
-            Console.WriteLine(actionBlock.InputCount);
+            actionBlock.Complete();
             await actionBlock.Completion.ConfigureAwait(false);
 
-            double avg = (double)totalSteps / num_of_steps;
+            double avg = (double)total_steps / totalRuns;
 
-            return $"average steps needed to crack the combination was {avg}, max :{max}, min: {min}, total runs: {total_runs}";
+            return $"average steps needed to crack the secret: {avg} , total runs simulated : {totalRuns}";
+        }
+
+        private static int GetGameMode()
+        {
+            Console.WriteLine("welcome to Exact Hit Simulator (aka Bulls and Cows)\n" +
+                              "for a manual simulation of the system cracking your code press 1, for automated simulation press 2");
+            int decisionNumber;
+
+            var decision = Console.ReadLine();
+
+            while (!int.TryParse(decision, out decisionNumber) || (decisionNumber != 1 && decisionNumber != 2))
+            {
+                Console.WriteLine("invalid number enter 1 or 2 ...");
+                decision = Console.ReadLine();
+            }
+
+            return decisionNumber;
+        }
+
+        private static int GetRequestedNumberOfSimulations()
+        {
+            Console.WriteLine("Enter number of simulations requested");
+
+            int numberOfSimulations;
+            var numberOfSimulationsInput = Console.ReadLine();
+
+            while ((!int.TryParse(numberOfSimulationsInput, out numberOfSimulations)) || numberOfSimulations < 1 || numberOfSimulations > 10000)
+            {
+                Console.WriteLine("invalid number, please provide positive integer smaller than 10000");
+                numberOfSimulationsInput = Console.ReadLine();
+            }
+
+            return numberOfSimulations;
         }
     }
 }

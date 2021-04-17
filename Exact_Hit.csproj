@@ -48,6 +48,7 @@
   <ItemGroup>
     <Compile Include="ComputingLogic.cs" />
     <Compile Include="Guess.cs" />
+    <Compile Include="GuessesHistFactory.cs" />
     <Compile Include="Player.cs" />
     <Compile Include="GameSimulator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -57,7 +58,6 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
-    <None Include="serialized_guesses_4_10" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿
 namespace Exact_Hit
 {
+    using System;
+    using System.Text;
+
     public enum Colors
     {
         Green,
@@ -23,7 +21,7 @@ namespace Exact_Hit
     [Serializable]
     public class Guess
     {
-        public Colors[] ChosenGuess;
+        public readonly Colors[] ChosenGuess;
 
         public static readonly int c_NumberOfColors = Enum.GetNames(typeof(Colors)).Length;
 
@@ -63,6 +61,11 @@ namespace Exact_Hit
             {
                 Guess newGuess = (Guess) obj;
 
+                if (newGuess.ChosenGuess.Length != ChosenGuess.Length)
+                {
+                    return false;
+                }
+
                 for (int i = 0; i < c_GuessLenght; i++)
                 {
                     if (newGuess.ChosenGuess[i] != ChosenGuess[i])
@@ -71,6 +74,16 @@ namespace Exact_Hit
 
                 return true;
             }
+        }
+
+        public override int GetHashCode()
+        {
+            var str = new StringBuilder($"{c_GuessLenght}{c_NumberOfColors}");
+            foreach (var color in ChosenGuess)
+            {
+                str.Append($"{(int)color}");
+            }
+            return Convert.ToInt32(str.ToString());
         }
     }
 }
