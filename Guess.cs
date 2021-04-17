@@ -20,6 +20,7 @@ namespace Exact_Hit
         Pink,
     }
 
+    [Serializable]
     public class Guess
     {
         public Colors[] ChosenGuess;

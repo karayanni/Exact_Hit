@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -8,7 +11,7 @@ namespace Exact_Hit
 {
     class ComputingLogic
     {
-        private HashSet<KeyValuePair<int, Guess>> GuessesHistSet = new HashSet<KeyValuePair<int, Guess>>();
+        private HashSet<Guess> GuessesHistSet = new HashSet<Guess>();
 
         private Guess _lastGuess;
 
@@ -43,7 +46,7 @@ namespace Exact_Hit
                                     // cant repeat same color
                                     continue;
                                 }
-                                GuessesHistSet.Add(new KeyValuePair<int, Guess>(0, new Guess(new Colors[4] { (Colors)i1, (Colors)i2, (Colors)i3, (Colors)i4 })));
+                                GuessesHistSet.Add(new Guess(new Colors[4] { (Colors)i1, (Colors)i2, (Colors)i3, (Colors)i4 }));
                             }
                         }
                     }
@@ -59,12 +62,35 @@ namespace Exact_Hit
                         {
                             for (int i4 = 0; i4 < Guess.c_NumberOfColors; i4++)
                             {
-                                GuessesHistSet.Add(new KeyValuePair<int, Guess>(0, new Guess(new Colors[4] { (Colors)i1, (Colors)i2, (Colors)i3, (Colors)i4 })));
+                                GuessesHistSet.Add(new Guess(new Colors[4] { (Colors)i1, (Colors)i2, (Colors)i3, (Colors)i4 }));
                             }
                         }
                     }
                 }
             }
+
+
+            ////using (var file = File.Create("C:\\Users\\nkarayanni\\OneDrive - Microsoft\\nader's\\Exact_Hit\\serialized_objects"))
+            ////{
+            ////    FileStream fs = new FileStream("DataFile.dat", FileMode.Create);
+            ////    BinaryFormatter formatter = new BinaryFormatter();
+
+            ////    try
+            ////    {
+            ////        formatter.Serialize(fs, GuessesHistSet);
+            ////        fs.Seek(0, SeekOrigin.Begin);
+            ////        fs.CopyTo(file);
+            ////    }
+            ////    catch (SerializationException e)
+            ////    {
+            ////        Console.WriteLine("Failed to serialize. Reason: " + e.Message);
+            ////        throw;
+            ////    }
+            ////    finally
+            ////    {
+            ////        fs.Close();
+            ////    }
+            ////}
         }
 
         public Guess MakeGuess()
@@ -81,17 +107,18 @@ namespace Exact_Hit
                 iterator.MoveNext();
             }
 
-            _lastGuess = iterator.Current.Value;
+            _lastGuess = iterator.Current;
             
             iterator.Dispose();
             
             return _lastGuess;
         }
 
-        public void ReceiveResponse(Response response)
+        public bool ReceiveResponse(Response response)
         {
-            GuessesHistSet.RemoveWhere(pair => 
-                Utils.GetResponse(pair.Value, _lastGuess).Equals(response) == false);
+            GuessesHistSet.RemoveWhere(guess=> 
+                Utils.GetResponse(guess, _lastGuess).Equals(response) == false);
+            return GuessesHistSet.Count >= 1;
         }
     }
 }
